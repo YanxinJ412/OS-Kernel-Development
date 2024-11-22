@@ -1,0 +1,130 @@
+Bug#1
+Issue:
+One of the first issues that our group faced was that our output was bootlooping when we were testing our IDT initialization and 
+the exception, interrupt and system call handlers. This is because, in the function idt.c, when I was populating the entries 
+in the SET_IDT_ENTRY, I was directly calling the device interrupt handlers instead of through the assmebly linkage 
+which was causing an error
+Solution: We created an assembly linkage for the keyboard and rtc from which we called the keyboard and rtc 
+handlers that executed the code whenever an interrupt was invoked 
+Where: idt.c, keyboard.c, rtc.c 
+
+Bug#2 
+Issue: 
+One of the other issues that our group faced was in the initialization of the PIC. We were confused while working 
+on implementing the end of interrupt signal function. There are two EOI signals: 0x20 and 0x60. We were using the 
+0x20 EOI and OR'ing it with the irq pin number where the interrupt was getting invoked from. This was causing a issues
+with the PIC and then the devices that were connected to the PIC irq pins. 
+Solution: We realized that in order to use the 0x20 EOI signal, we did not need to specify the irq pin number 
+we were sending the EOI signal to. However, our group ended up using the 0x60 command for the EOI signal for which, we 
+specifically needed to OR it with the irq pin number 
+Where: i8259.c
+
+Bug#3
+Issue: 
+One of the other issues that our group faced was in the initialization of the IDT. We had only initialized the first 
+20 entries of the IDT to present(including their dpl, gate type) which only includes the exceptions portion of the IDT table. 
+Due to this, when we launched our tests, we ran into a general protection error
+Solution: Instead of only initializing the first 20 entries of the IDT, we had to initialize all the 256 entries which 
+included the system calls and the device interrupts as well.
+Where: idt.c
+
+Bug#4
+Issue: 
+One of the last issues that our group faced was in the paging. The major issue is that the paging isn't sucessfully initialized 
+and the addresses are mismathced. When debugging using gdb, thr entries of page directory and page table don't contain the correct
+value.
+Solution: We set up the PSE bit4 in CR4 which allows mixed page sizes in enablePaging function. The page size in PDE except the 
+first PDE should set to 1. We changed the helper function to access the global variable of PD and PE directly in the function 
+so that it can sucessfully set up the PD and PE. The way to set address offset for different type of PDE should be difference 
+since the addr offset of the PDE as 4kB page table has the size of 20 bits while that of the PDE as 4MB page has the size of 10 bits.
+The left shift offset should be different
+Where: page.S, paging.c
+
+Bug#5 
+Issue: 
+One of the issues that we faced was while reading data from the file. Initially, we were not able to understand the meaning of 
+the offset variable. We thought the files were 4kB in total when, they could be a size of 4 MB divided into 4 kB partitions. 
+Due to this, when we were using the offset varibale, we were only accessing a portion of the file and not iterating through all 
+the contents. 
+Solution: We understood that the index from which we had to access the data block address was offset / 4096 and the 
+index from where we had to start reading from within that specific data block was offset % 4096. This helped us 
+successfully output the entire contents of the file. 
+Where: files_system.c, file_system.h
+
+Bug#6
+Issue: 
+One of the issues that our group faced was keyboard setting. The keys such as backspace, tab, and enter don't work. If I press tab 
+several times along with other characters, when I keep pressing backspace to delete all the characters on the console, some of the
+characters at the beginning cannot be deleted. In terminal_write, when I try to print ‘\t’ stored in the buffer, it prints a circle 
+on the console.
+Solution: num_char which records the number of character functions incorrectly. Inside the capacity of the keyboard buffer, 
+everytime we press the keys, we should increment num_char. If it exceeds the capacity of the buffer, we consider tab as 4 spaces, 
+and thus num_char should increase by 4 when tab is pressed. Also, we need to increment num_char when we press enter so
+that backspace can function correctly. Moreover, since we store ‘\t’ as a tab pressed in the keyboard buffer, we need to implement 
+putc(ASCII_SPACE) 4 times to print the tab correctly in terminal_write.
+Where: terminal.c/h, keyboard.c/h
+
+Bug#7 
+Issue: 
+One of the issues that occured during the rtc was during the testing, the rtc was printing really slow compared
+to the gif on the piazza.
+Solution: In order for the rtc to work, the register A had to be set before. In addition, the register A's code 
+was not in order which there wasn't a pattern they all followed. Some of the frequencies had a small pattern but 
+not one that could be used on each value. As a result, the code that was given to registor A was incorrect. 
+Where: rtc.c, rtc.h
+
+Bug#8
+Issue: 
+One of the issues that our group faced was during execute. We keep getting the pagefault or general protection fault when we run execute. 
+Solution: the paging and the format of inline assembly are incorrect. I set the right_shift offset previouly to page virtual and physical
+memory address. But I mistakenly made the physical address of each process divided by the offset. I should use right shift instead. Second,
+the format of inline assembly is incorrect. We'd better use inline assembly in c file and if we want to set up input, we should use "r"(var)
+to parse input and use these input using %num
+Where: syscall.c/h
+
+Bug#9
+Issue: 
+After the first iteration of directory read, only the . was printing. This caused the fd to be 0 and resulted in an infinite loop in terminal read.
+Solution: In the ece391ls.c file, the buffer size was 33. However in our dir_read function, we were changing the 33rd index to be 0 which was changing
+the fd for the next file to 0. Therefore, there was nothing being outputted to the screen since it went to terminal read instead. We removed the line which
+was accessing this element which then fixed the issue and got the ls executable to work.
+Where: file_system.c/h
+
+Bug#10
+Issue:
+When halt was called, it would raise an page fault when it was trying to run the halt return assembly code.
+Solution: When we were returning from the assembly code, we only had ret at the end of the code. However, we needed to include leave before the ret to 
+change the eip to make the halt not page fault. We left leave out because we understood leave to move the ebp into esp before popping the ebp. Since we
+didn't push ebp at the beginning, we thought we didn't need to use leave before returning. This would result in our eip not getting changed which was the
+reason why we had a page fault.
+Where syscall.c/h
+
+Bug#11
+Issue: Even though we remapped the video memory into user spaces correctly by paging, fish command still terminates abnormally.
+Solution: the set up for the address of start_screen (*start_screen) was incorrectly. It should be *start_screen = (uint8_t*) VIDMAP_ADDR rather than 
+(uint8_t) VIDMAP_ADDR. I casted *start_screen in a wrong way.
+Where syscall.c/h
+
+Bug#12
+Issue: When running the cat command, the file names were not being recognized when extra spaces were added around the typed file name.
+Solution: The issue was the populated buffer for the file name was also including white space which was messing up the file name itself. Therefore, when trying to
+open the file in file system, it was not being recognized. The fix was to remove white spaces when parsing the argument.
+Where syscall.c/h
+
+Bug#13
+Issue: When we were performing a terminal switch, we were changing the program image to point to the new terminals program image. The issue is the scheduler also changes the
+program image and therefore there would be a mix up in which program to run by the scheduler and this caused a page fault.
+Solution: The fix for this was only to make the scheduler change the program image every 10 ms instead of both the terminal switch and the scheduler. This way only the scheduler 
+defined what to run.
+
+
+Bug#14
+Issue: The ebp was changing as the scheduler was running every 10 ms which meant the scheduler could not recover the next process to switch to. This was causing a page fault as 
+the ebp was not going to the appropriate next process. 
+Solution: Our paging when switching from the backup pages to the video memory in physical memory was wrong. We needed to change how we were mapping the paging. Once we did this
+the ebp was restored properly. And we need to store different ebp and esp as scheduler_ebp and scheduler_esp when we do the context switch.
+
+Bug#15
+Issue: When we were trying to create the terminals, we were trying to create terminals when we first switched to that specific terminal. The context switch wouldn't work because of
+we didn't save the esp and ebp. 
+Solution: We created the terminals during the pit interrupts instead of the terminal switch. In addition, we saved the esp and ebp before called execute("shell").
